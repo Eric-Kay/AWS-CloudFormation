@@ -1,0 +1,118 @@
+Parameters:
+  NameOfService:
+    Type: String
+    Description: "Tis Is Eprofile CloudFormation"
+
+  InstanceTypeParameter:
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+      - t2.medium
+      - m1.small
+      - m1.large
+    Description: Enter t2.micro, m1.small, or m1.large. Default is t2.micro.
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: list of EC2 Keys
+
+
+
+Mappings: 
+  AmiRegionMap: 
+    us-east-1: 
+      AMI: "ami-053b0d53c279acc90"
+    us-east-2: 
+      AMI: "ami-07165e7a8908a6c3e"
+   #us-west-1: 
+      #AMI: "ami-0f8e81a3da6e2510a"
+    #eu-west-1:
+      #AMI: "ami-05432c5a0f7b1bfd0"
+    #eu-west-2:
+      #AMI: "ami-0d3d7361711458bf8"
+    #eu-west-2:
+      #AMI: "ami-038056f5d3df2259d"
+
+Resources:
+  webServer:
+    Type: AWS::EC2::Instance
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            yum:
+              php: []
+              httpd: []
+              wget: []
+              unzip: []
+              git: []
+          #commands:
+            #test:
+              #command: "wget https://www.tooplate.com/zip-templates/2098_health.zip && unzip 2098_health.zip && cp -r 2098_health.zip/* /var/www/html/"
+          files:
+            /var/www/html/hello.html:
+              <!DOCTYPE html>
+              <html>
+              <body>
+
+              <h1>Welcome to CloudFormation.</h1>
+              <p>This site is deployed by CloudFormation</p>
+
+              </body>
+              </html>
+          services:
+            sysvinit:
+              httpd:
+                enabled: "true"
+                ensureRunning: "true"    
+        
+    Properties:
+      InstanceType: !Ref InstanceTypeParameter
+      KeyName: !Ref KeyName
+      ImageId: !FindInMap
+        - AmiRegionMap
+        - !Ref AWS::Region 
+        - AMI
+      Tags:
+        - Key: "Name"
+          Value: !Ref NameOfService
+      SecurityGroups:
+        - !Ref eprofileSG
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash -xe
+            yum install httpd wget unzip -y
+            systemctl start httpd
+            systemctl enable httpd
+            cd /tmp/
+            wget www.tooplate.com/zip-templates/2123_simply_amazed.zip
+            unzip -o 2123_simply_amazed.zip
+            cp -r 2123_simply_amazed/* /var/www/html/
+            systemctl restart httpd 
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource webServer --region ${AWS::Region}
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource webServer --region ${AWS::Region}
+
+  eprofileSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http && ssh from myIP
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp:   192.168.1.27/32
+
+Outputs:
+  PrintSomeInfo:
+    Value: !GetAtt
+        - webServer
+        - PublicDnsName
+
+
+
